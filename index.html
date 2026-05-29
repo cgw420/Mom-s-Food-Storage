@@ -152,7 +152,7 @@
     .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
     .copt{padding:9px 6px;border:1.5px solid var(--border);border-radius:10px;
           text-align:center;cursor:pointer;font-size:12px;font-weight:500;
-          color:var(--muted);transition:all .15s;line-height:1.3}
+          color:var(--muted);transition:all .15px;line-height:1.3}
     .copt .ce{font-size:20px;display:block;margin-bottom:3px}
     .copt.on{border-color:var(--green);background:var(--green-l);color:var(--green);font-weight:700}
     .btn{width:100%;padding:14px;border-radius:12px;border:none;
@@ -161,6 +161,40 @@
     .btn-p:active{background:var(--green-d);transform:scale(.98)}
     .btn-g{background:var(--bg);color:var(--muted)}
     .btn-d{background:var(--red-bg);color:var(--red)}
+
+    /* LOCATIONS EDITOR */
+    .loc-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+    .loc-row{display:flex;align-items:center;gap:8px;background:var(--bg);
+             border-radius:8px;padding:8px 10px}
+    .loc-row span{flex:1;font-size:14px;font-weight:500}
+    .loc-del{width:26px;height:26px;border:none;background:none;cursor:pointer;
+             color:var(--red);font-size:17px;border-radius:6px;
+             display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .loc-del:active{background:var(--red-bg)}
+    .loc-add-row{display:flex;gap:8px}
+    .loc-add-row .fi{flex:1}
+    .loc-add-btn{padding:11px 14px;background:var(--green);color:#fff;border:none;
+                 border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap}
+    .loc-add-btn:active{background:var(--green-d)}
+    .settings-section{font-size:11px;font-weight:700;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.6px;
+                      margin:18px 0 10px;padding-top:18px;border-top:1px solid var(--border)}
+
+    /* AUTOCOMPLETE */
+    .suggest-wrap{position:relative}
+    .suggest-list{position:absolute;top:calc(100% + 4px);left:0;right:0;
+                  background:var(--surface);border:1.5px solid var(--green);
+                  border-radius:10px;box-shadow:var(--shadow);
+                  z-index:400;overflow:hidden;max-height:220px;overflow-y:auto}
+    .suggest-item{padding:11px 13px;cursor:pointer;display:flex;align-items:center;gap:10px;
+                  border-bottom:1px solid var(--border);transition:background .1s}
+    .suggest-item:last-child{border-bottom:none}
+    .suggest-item:active,.suggest-item:hover{background:var(--green-l)}
+    .suggest-icon{font-size:20px;flex-shrink:0}
+    .suggest-body{flex:1;min-width:0}
+    .suggest-name{font-weight:700;font-size:14px}
+    .suggest-sub{font-size:12px;color:var(--muted);margin-top:1px}
+    .suggest-hint{padding:9px 13px;font-size:12px;color:var(--muted);font-style:italic}
 
     /* TOAST */
     #toast{position:fixed;bottom:90px;left:50%;
@@ -244,7 +278,11 @@
     <div class="stitle" id="mTitle">Add Item</div>
     <div class="fg">
       <label class="fl">Item Name *</label>
-      <input type="text" class="fi" id="iName" placeholder="e.g. Marshmallows" autocomplete="off">
+      <div class="suggest-wrap">
+        <input type="text" class="fi" id="iName" placeholder="e.g. Marshmallows" autocomplete="off"
+               oninput="nameSuggest()" onblur="setTimeout(hideSuggests,150)">
+        <div class="suggest-list hidden" id="suggestList"></div>
+      </div>
     </div>
     <div class="fg">
       <label class="fl">Category</label>
@@ -279,7 +317,7 @@
     </div>
     <button class="btn btn-p" onclick="saveItem()">Save Item</button>
     <button class="btn btn-d hidden" id="delBtn" onclick="deleteItem()">🗑 Delete Item</button>
-    <button class="btn btn-g" onclick="close('iModal')">Cancel</button>
+    <button class="btn btn-g" onclick="dismiss('iModal')">Cancel</button>
   </div>
 </div>
 
@@ -292,8 +330,14 @@
       <label class="fl">Apps Script URL</label>
       <input type="url" class="fi" id="sUrl" placeholder="https://script.google.com/macros/s/…">
     </div>
-    <button class="btn btn-p" onclick="saveSettings()">Save</button>
-    <button class="btn btn-g" onclick="close('sModal')">Cancel</button>
+    <div class="settings-section">Locations</div>
+    <div class="loc-list" id="locList"></div>
+    <div class="loc-add-row">
+      <input type="text" class="fi" id="locNew" placeholder="Add a location…" autocomplete="off">
+      <button class="loc-add-btn" onclick="addLoc()">+ Add</button>
+    </div>
+    <button class="btn btn-p" onclick="saveSettings()" style="margin-top:18px">Save</button>
+    <button class="btn btn-g" onclick="dismiss('sModal')">Cancel</button>
   </div>
 </div>
 
@@ -307,15 +351,56 @@ const CATS = [
 ];
 const EM = Object.fromEntries(CATS.map(c=>[c.n,c.e]));
 
+const DEFAULT_LOCS = ['Walk-in Freezer','Chest Freezer','Pantry Shelf',
+                      'Kitchen Cabinet','Garage Shelf','Basement Storage','Other'];
+
 // ─── STATE ────────────────────────────────────────────────────
 let inv = [], activeF = null, editId = null;
 let GAS = localStorage.getItem('gasUrl') || '';
+let locs = JSON.parse(localStorage.getItem('locations') || 'null') || [...DEFAULT_LOCS];
 
 // ─── BOOT ────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   buildCats();
+  buildLocSelect();
   if (!GAS) { show('setup'); hide('app'); }
   else      { hide('setup'); show('app'); show('fab'); load(); }
+});
+
+// ─── LOCATIONS ────────────────────────────────────────────────
+function saveLocs() { localStorage.setItem('locations', JSON.stringify(locs)); }
+
+function buildLocSelect() {
+  const sel = g('iLoc');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Select…</option>'
+    + locs.map(l=>`<option${cur===l?' selected':''}>${x(l)}</option>`).join('');
+}
+
+function renderLocList() {
+  g('locList').innerHTML = locs.map((l,i)=>`
+    <div class="loc-row">
+      <span>${x(l)}</span>
+      <button class="loc-del" onclick="deleteLoc(${i})" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+function deleteLoc(i) {
+  locs.splice(i,1); saveLocs(); renderLocList(); buildLocSelect();
+}
+
+function addLoc() {
+  const val = g('locNew').value.trim();
+  if (!val) return;
+  if (locs.includes(val)) { toast('Location already exists'); return; }
+  locs.push(val); saveLocs();
+  g('locNew').value='';
+  renderLocList(); buildLocSelect();
+}
+
+// allow Enter key in the add-location input
+document.addEventListener('DOMContentLoaded', () => {
+  g('locNew').addEventListener('keydown', e => { if(e.key==='Enter') addLoc(); });
 });
 
 // ─── SETUP ───────────────────────────────────────────────────
@@ -335,7 +420,7 @@ async function apiPost(body) {
   try {
     const r = await fetch(GAS, { method:'POST', body:JSON.stringify(body) });
     return await r.json();
-  } catch { return {ok:true}; } // CORS may block read; action still executes
+  } catch { return {ok:true}; }
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────
@@ -390,9 +475,9 @@ function renderInv() {
 
 // ─── FILTER CHIPS ─────────────────────────────────────────────
 function buildChips() {
-  const locs = [...new Set(inv.map(i=>i.Location).filter(Boolean))].sort();
+  const usedLocs = [...new Set(inv.map(i=>i.Location).filter(Boolean))].sort();
   let h = `<button class="chip${!activeF?' on':''}" onclick="setFilter(null,this)">All</button>`;
-  locs.forEach(l => h += `<button class="chip${activeF===l?' on':''}" onclick="setFilter(${JSON.stringify(l)},this)">${x(l)}</button>`);
+  usedLocs.forEach(l => h += `<button class="chip${activeF===l?' on':''}" onclick="setFilter(${JSON.stringify(l)},this)">${x(l)}</button>`);
   g('chips').innerHTML = h;
 }
 function setFilter(v, btn) {
@@ -472,6 +557,8 @@ function openAdd() {
   g('iQty').value='1'; g('iLoc').value='';
   document.querySelectorAll('.copt').forEach(e=>e.classList.remove('on'));
   g('delBtn').classList.add('hidden');
+  buildLocSelect();
+  hideSuggests();
   show('iModal'); setTimeout(()=>g('iName').focus(),350);
 }
 function openEdit(id) {
@@ -479,16 +566,20 @@ function openEdit(id) {
   if (!item) return;
   editId = id; g('mTitle').textContent='Edit Item';
   g('iName').value=item.Name; g('iQty').value=item.Quantity;
-  g('iUnit').value=item.Unit||''; g('iLoc').value=item.Location||''; g('iNotes').value=item.Notes||'';
+  g('iUnit').value=item.Unit||''; g('iNotes').value=item.Notes||'';
+  buildLocSelect();
+  g('iLoc').value=item.Location||'';
   document.querySelectorAll('.copt').forEach(e=>e.classList.toggle('on',e.textContent.trim()===item.Category));
-  g('delBtn').classList.remove('hidden'); show('iModal');
+  g('delBtn').classList.remove('hidden');
+  hideSuggests();
+  show('iModal');
 }
 async function saveItem() {
   const name = g('iName').value.trim();
   if (!name) { toast('Item name is required'); return; }
   const body = {name, category:selCat(), quantity:parseInt(g('iQty').value)||1,
                 unit:g('iUnit').value.trim(), location:g('iLoc').value, notes:g('iNotes').value.trim()};
-  close('iModal');
+  dismiss('iModal');
   if (editId) { await apiPost({...body, action:'edit', id:editId}); toast('Item updated ✓'); }
   else        { await apiPost({...body, action:'add'}); toast(`${name} added! ✓`); }
   await load();
@@ -497,24 +588,53 @@ async function deleteItem() {
   if (!editId) return;
   const item = inv.find(i=>String(i.ID)===String(editId));
   if (!confirm(`Delete "${item?.Name}"?`)) return;
-  close('iModal'); await apiPost({action:'delete',id:editId}); toast('Item deleted'); await load();
+  dismiss('iModal'); await apiPost({action:'delete',id:editId}); toast('Item deleted'); await load();
 }
 
+// ─── AUTOCOMPLETE ─────────────────────────────────────────────
+function nameSuggest() {
+  const q = g('iName').value.trim().toLowerCase();
+  if (!q || editId) { hide('suggestList'); return; }
+  const matches = inv
+    .map(item => { const n=lo(item.Name); return {item, score:n.startsWith(q)?2:n.includes(q)?1:0}; })
+    .filter(r=>r.score>0)
+    .sort((a,b)=>b.score-a.score||lo(a.item.Name).localeCompare(lo(b.item.Name)))
+    .slice(0,6);
+  if (!matches.length) { hide('suggestList'); return; }
+  g('suggestList').innerHTML = matches.map(({item})=>{
+    const sub=[item.Location, item.Unit?`${item.Quantity} ${item.Unit}`:`qty: ${item.Quantity}`,item.Notes].filter(Boolean).join(' · ');
+    return `<div class="suggest-item" onmousedown="pickSuggest('${item.ID}')">
+      <span class="suggest-icon">${EM[item.Category]||'📦'}</span>
+      <div class="suggest-body">
+        <div class="suggest-name">${x(item.Name)}</div>
+        ${sub?`<div class="suggest-sub">${x(sub)}</div>`:''}
+      </div></div>`;
+  }).join('') + `<div class="suggest-hint">Tap to update an existing item instead of creating a duplicate</div>`;
+  show('suggestList');
+}
+function pickSuggest(id) { hideSuggests(); openEdit(id); }
+function hideSuggests() { hide('suggestList'); }
+
 // ─── SETTINGS ─────────────────────────────────────────────────
-function openSettings() { g('sUrl').value=GAS; show('sModal'); }
+function openSettings() {
+  g('sUrl').value = GAS;
+  renderLocList();
+  show('sModal');
+}
 function saveSettings() {
-  GAS = g('sUrl').value.trim(); localStorage.setItem('gasUrl',GAS);
-  close('sModal'); toast('Saved'); load();
+  GAS = g('sUrl').value.trim();
+  localStorage.setItem('gasUrl', GAS);
+  dismiss('sModal'); toast('Saved'); load();
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────
 const g = id => document.getElementById(id);
 const show = id => g(id).classList.remove('hidden');
 const hide = id => g(id).classList.add('hidden');
-const close = id => hide(id);
+function dismiss(id) { hide(id); }
 const lo = s => (s||'').toLowerCase();
 const x = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function bgClose(e, id) { if(e.target===g(id)) close(id); }
+function bgClose(e, id) { if(e.target===g(id)) dismiss(id); }
 
 let _tt;
 function toast(msg) {
