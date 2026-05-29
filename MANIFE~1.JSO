@@ -1,0 +1,17 @@
+{
+  "name": "Pantry Tracker",
+  "short_name": "Pantry",
+  "description": "Food storage inventory tracker",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f2ed",
+  "theme_color": "#2d6a4f",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%232d6a4f'/><text y='.9em' font-size='72' x='50%' text-anchor='middle'>🥫</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

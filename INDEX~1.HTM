@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Pantry Tracker</title>
+  <meta name="theme-color" content="#2d6a4f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Pantry">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root {
+      --green: #2d6a4f; --green-d: #1f4f39; --green-l: #e6f2ec;
+      --amber: #d4a017;
+      --bg: #f5f2ed; --surface: #fff;
+      --txt: #1a1a1a; --muted: #6b7280; --border: #e2ddd6;
+      --red: #dc2626; --red-bg: #fef2f2;
+      --shadow: 0 1px 4px rgba(0,0,0,.08),0 2px 12px rgba(0,0,0,.06);
+      --r: 14px;
+    }
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+         background:var(--bg);color:var(--txt);max-width:600px;margin:0 auto;min-height:100vh}
+    .hidden{display:none!important}
+
+    /* SETUP */
+    #setup{display:flex;flex-direction:column;align-items:center;
+           padding:52px 28px;min-height:100vh;text-align:center}
+    .s-icon{font-size:72px;margin-bottom:20px}
+    .s-title{font-size:26px;font-weight:800;margin-bottom:10px}
+    .s-sub{font-size:15px;color:var(--muted);line-height:1.6;margin-bottom:32px;max-width:340px}
+    .s-form{width:100%;max-width:400px}
+
+    /* HEADER */
+    header{background:var(--green);color:#fff;padding:14px 16px 12px;
+           position:sticky;top:0;z-index:100}
+    .hr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+    .htitle{font-size:19px;font-weight:800}
+    .hsub{font-size:12px;opacity:.75;margin-top:1px}
+    .hbtns{display:flex;gap:6px}
+    .hbtn{width:38px;height:38px;border-radius:50%;border:none;
+          background:rgba(255,255,255,.18);color:#fff;font-size:17px;
+          cursor:pointer;display:flex;align-items:center;justify-content:center;
+          transition:background .15s}
+    .hbtn:active{background:rgba(255,255,255,.32)}
+    .srch{display:flex;align-items:center;background:rgba(255,255,255,.16);
+          border-radius:24px;padding:9px 14px;gap:8px}
+    .srch input{background:none;border:none;outline:none;color:#fff;font-size:15px;width:100%}
+    .srch input::placeholder{color:rgba(255,255,255,.65)}
+
+    /* TABS */
+    .tabs{display:flex;background:var(--surface);border-bottom:1.5px solid var(--border);
+          position:sticky;top:108px;z-index:90}
+    .tab{flex:1;padding:11px 8px;border:none;background:none;
+         font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;
+         border-bottom:3px solid transparent;margin-bottom:-1.5px;
+         transition:all .18s;display:flex;align-items:center;justify-content:center;gap:6px}
+    .tab.on{color:var(--green);border-bottom-color:var(--green)}
+    .badge{background:var(--amber);color:#fff;border-radius:10px;
+           padding:1px 6px;font-size:11px;font-weight:700}
+
+    /* FILTER CHIPS */
+    .chips{padding:10px 14px;display:flex;gap:7px;overflow-x:auto;scrollbar-width:none}
+    .chips::-webkit-scrollbar{display:none}
+    .chip{padding:6px 13px;border-radius:20px;border:1.5px solid var(--border);
+          background:var(--surface);font-size:13px;font-weight:500;white-space:nowrap;
+          color:var(--muted);cursor:pointer;transition:all .15s}
+    .chip.on{background:var(--green);border-color:var(--green);color:#fff}
+
+    /* ITEM CARDS */
+    .list{padding:2px 14px 110px}
+    .card{background:var(--surface);border-radius:var(--r);padding:13px 12px;
+          margin-bottom:9px;box-shadow:var(--shadow);
+          display:flex;align-items:center;gap:10px;
+          animation:pop .18s ease}
+    @keyframes pop{from{opacity:0;transform:translateY(-5px) scale(.98)}to{opacity:1;transform:none}}
+    .cicon{font-size:26px;width:40px;text-align:center;flex-shrink:0}
+    .cbody{flex:1;min-width:0}
+    .cname{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .csub{font-size:12px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .qty{display:flex;align-items:center;gap:6px}
+    .qbtn{width:32px;height:32px;border-radius:50%;border:2px solid var(--green);
+          background:none;color:var(--green);font-size:19px;line-height:1;font-weight:700;
+          cursor:pointer;display:flex;align-items:center;justify-content:center;
+          transition:all .12s;flex-shrink:0}
+    .qbtn:active{background:var(--green);color:#fff;transform:scale(.9)}
+    .qnum{font-size:17px;font-weight:700;min-width:28px;text-align:center}
+    .qnum.z{color:var(--muted)}
+    .cside{display:flex;flex-direction:column;gap:3px;flex-shrink:0}
+    .sbtn{width:28px;height:28px;border:none;background:none;cursor:pointer;
+          font-size:15px;border-radius:7px;display:flex;align-items:center;
+          justify-content:center;transition:background .12s}
+    .sbtn:active{background:var(--bg)}
+    .sbtn.amber{color:var(--amber)}
+
+    /* EMPTY / LOADING */
+    .empty{text-align:center;padding:60px 20px 40px;color:var(--muted)}
+    .empty-icon{font-size:60px;margin-bottom:14px}
+    .empty h3{font-size:17px;color:var(--txt);margin-bottom:6px}
+    .empty p{font-size:14px}
+    .spin-wrap{text-align:center;padding:48px 20px}
+    .spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--green);
+             border-radius:50%;animation:spin .75s linear infinite;margin:0 auto 12px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .spin-wrap p{color:var(--muted);font-size:14px}
+
+    /* FAB */
+    #fab{position:fixed;bottom:24px;right:20px;width:56px;height:56px;border-radius:50%;
+         background:var(--green);color:#fff;border:none;font-size:30px;font-weight:300;
+         cursor:pointer;box-shadow:0 4px 18px rgba(45,106,79,.45);
+         display:flex;align-items:center;justify-content:center;
+         transition:transform .18s;z-index:200}
+    #fab:active{transform:scale(.92)}
+
+    /* SHOPPING */
+    .slist{padding:10px 14px 110px}
+    .scard{background:var(--surface);border-radius:var(--r);padding:13px 14px;
+           margin-bottom:9px;box-shadow:var(--shadow);
+           display:flex;align-items:center;gap:12px;transition:opacity .2s}
+    .scard.x{opacity:.4}
+    .scard.x .sname{text-decoration:line-through}
+    .scirc{width:26px;height:26px;border-radius:50%;border:2.5px solid var(--border);
+           cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+           font-size:13px;color:transparent;transition:all .15s}
+    .scirc.done{background:var(--green);border-color:var(--green);color:#fff}
+    .sname{font-weight:700;font-size:15px;flex:1}
+    .sdet{font-size:12px;color:var(--muted)}
+    .clr-btn{display:block;margin:14px auto 0;padding:10px 22px;
+             border:1.5px solid var(--red);background:none;color:var(--red);
+             border-radius:22px;cursor:pointer;font-size:13px;font-weight:600}
+    .clr-btn:active{background:var(--red-bg)}
+
+    /* MODAL / SHEET */
+    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.48);z-index:300;
+             display:flex;align-items:flex-end;animation:fbg .2s}
+    @keyframes fbg{from{opacity:0}to{opacity:1}}
+    .sheet{background:var(--surface);border-radius:22px 22px 0 0;width:100%;
+           max-height:92vh;overflow-y:auto;padding:20px 20px 32px;
+           animation:sup .28s cubic-bezier(.4,0,.2,1)}
+    @keyframes sup{from{transform:translateY(100%)}to{transform:none}}
+    .handle{width:38px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px}
+    .stitle{font-size:20px;font-weight:800;margin-bottom:18px}
+    .fg{margin-bottom:15px}
+    .fl{display:block;font-size:11px;font-weight:700;color:var(--muted);
+        text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px}
+    .fi{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:10px;
+        font-size:16px;outline:none;background:var(--bg);
+        transition:border-color .18s,background .18s;-webkit-appearance:none}
+    .fi:focus{border-color:var(--green);background:#fff}
+    .frow{display:flex;gap:11px}
+    .frow .fg{flex:1}
+    .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+    .copt{padding:9px 6px;border:1.5px solid var(--border);border-radius:10px;
+          text-align:center;cursor:pointer;font-size:12px;font-weight:500;
+          color:var(--muted);transition:all .15s;line-height:1.3}
+    .copt .ce{font-size:20px;display:block;margin-bottom:3px}
+    .copt.on{border-color:var(--green);background:var(--green-l);color:var(--green);font-weight:700}
+    .btn{width:100%;padding:14px;border-radius:12px;border:none;
+         font-size:16px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:6px}
+    .btn-p{background:var(--green);color:#fff}
+    .btn-p:active{background:var(--green-d);transform:scale(.98)}
+    .btn-g{background:var(--bg);color:var(--muted)}
+    .btn-d{background:var(--red-bg);color:var(--red)}
+
+    /* TOAST */
+    #toast{position:fixed;bottom:90px;left:50%;
+           transform:translateX(-50%) translateY(10px);
+           background:#1f2937;color:#fff;padding:9px 18px;border-radius:22px;
+           font-size:14px;font-weight:500;opacity:0;
+           transition:opacity .25s,transform .25s;
+           pointer-events:none;z-index:500;white-space:nowrap}
+    #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    @media(prefers-color-scheme:dark){
+      :root{--bg:#18211e;--surface:#232e29;--txt:#f0f0ee;--muted:#8a9e94;--border:#374840}
+    }
+  </style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<!-- ═══ SETUP SCREEN ═══ -->
+<div id="setup">
+  <div class="s-icon">🥫</div>
+  <div class="s-title">Pantry Tracker</div>
+  <div class="s-sub">Paste your Google Apps Script URL below to connect your inventory to Google Sheets. See SETUP.md for step-by-step instructions.</div>
+  <div class="s-form">
+    <div class="fg">
+      <label class="fl">Apps Script URL</label>
+      <input type="url" class="fi" id="setupUrl" placeholder="https://script.google.com/macros/s/…" autocomplete="off">
+    </div>
+    <button class="btn btn-p" onclick="completeSetup()">Connect &amp; Start →</button>
+  </div>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div id="app" class="hidden">
+  <header>
+    <div class="hr">
+      <div>
+        <div class="htitle">🥫 Pantry Tracker</div>
+        <div class="hsub" id="countLine">—</div>
+      </div>
+      <div class="hbtns">
+        <button class="hbtn" onclick="load()" title="Refresh">↻</button>
+        <button class="hbtn" onclick="openSettings()" title="Settings">⚙</button>
+      </div>
+    </div>
+    <div class="srch">
+      <span style="opacity:.75;font-size:15px">🔍</span>
+      <input type="search" id="srchInput" placeholder="Search items…" oninput="renderInv()">
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab on" id="tInv" onclick="switchTab('inv')">📦 Inventory</button>
+    <button class="tab" id="tShop" onclick="switchTab('shop')">
+      🛒 Shopping
+      <span class="badge hidden" id="shopBadge">0</span>
+    </button>
+  </div>
+
+  <div id="pInv">
+    <div class="chips" id="chips">
+      <button class="chip on" onclick="setFilter(null,this)">All</button>
+    </div>
+    <div class="list" id="invList">
+      <div class="spin-wrap"><div class="spinner"></div><p>Loading…</p></div>
+    </div>
+  </div>
+
+  <div id="pShop" class="hidden">
+    <div class="slist" id="shopList"></div>
+  </div>
+</div>
+
+<button id="fab" class="hidden" onclick="openAdd()" title="Add item">+</button>
+
+<!-- ═══ ITEM MODAL ═══ -->
+<div class="overlay hidden" id="iModal" onclick="bgClose(event,'iModal')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="stitle" id="mTitle">Add Item</div>
+    <div class="fg">
+      <label class="fl">Item Name *</label>
+      <input type="text" class="fi" id="iName" placeholder="e.g. Marshmallows" autocomplete="off">
+    </div>
+    <div class="fg">
+      <label class="fl">Category</label>
+      <div class="cgrid" id="cgrid"></div>
+    </div>
+    <div class="frow">
+      <div class="fg">
+        <label class="fl">Quantity</label>
+        <input type="number" class="fi" id="iQty" value="1" min="0">
+      </div>
+      <div class="fg">
+        <label class="fl">Unit</label>
+        <input type="text" class="fi" id="iUnit" placeholder="bags, cans…">
+      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Location</label>
+      <select class="fi" id="iLoc">
+        <option value="">Select…</option>
+        <option>Walk-in Freezer</option>
+        <option>Chest Freezer</option>
+        <option>Pantry Shelf</option>
+        <option>Kitchen Cabinet</option>
+        <option>Garage Shelf</option>
+        <option>Basement Storage</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="fg">
+      <label class="fl">Notes</label>
+      <input type="text" class="fi" id="iNotes" placeholder="Brand, flavor, etc.">
+    </div>
+    <button class="btn btn-p" onclick="saveItem()">Save Item</button>
+    <button class="btn btn-d hidden" id="delBtn" onclick="deleteItem()">🗑 Delete Item</button>
+    <button class="btn btn-g" onclick="close('iModal')">Cancel</button>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS MODAL ═══ -->
+<div class="overlay hidden" id="sModal" onclick="bgClose(event,'sModal')">
+  <div class="sheet">
+    <div class="handle"></div>
+    <div class="stitle">Settings</div>
+    <div class="fg">
+      <label class="fl">Apps Script URL</label>
+      <input type="url" class="fi" id="sUrl" placeholder="https://script.google.com/macros/s/…">
+    </div>
+    <button class="btn btn-p" onclick="saveSettings()">Save</button>
+    <button class="btn btn-g" onclick="close('sModal')">Cancel</button>
+  </div>
+</div>
+
+<script>
+// ─── CATEGORIES ───────────────────────────────────────────────
+const CATS = [
+  {n:'Freezer',e:'🧊'},{n:'Canned',e:'🥫'},{n:'Baking',e:'🌾'},
+  {n:'Snacks',e:'🍪'},{n:'Drinks',e:'🥤'},{n:'Produce',e:'🥦'},
+  {n:'Meat',e:'🥩'},{n:'Dairy',e:'🥛'},{n:'Grains',e:'🍚'},
+  {n:'Condiments',e:'🫙'},{n:'Spices',e:'🌿'},{n:'Other',e:'📦'},
+];
+const EM = Object.fromEntries(CATS.map(c=>[c.n,c.e]));
+
+// ─── STATE ────────────────────────────────────────────────────
+let inv = [], activeF = null, editId = null;
+let GAS = localStorage.getItem('gasUrl') || '';
+
+// ─── BOOT ────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  buildCats();
+  if (!GAS) { show('setup'); hide('app'); }
+  else      { hide('setup'); show('app'); show('fab'); load(); }
+});
+
+// ─── SETUP ───────────────────────────────────────────────────
+function completeSetup() {
+  const url = g('setupUrl').value.trim();
+  if (!url.startsWith('https://')) { toast('Please enter a valid URL'); return; }
+  GAS = url; localStorage.setItem('gasUrl', url);
+  hide('setup'); show('app'); show('fab'); load();
+}
+
+// ─── API ─────────────────────────────────────────────────────
+async function apiGet() {
+  const r = await fetch(GAS + '?t=' + Date.now());
+  return r.json();
+}
+async function apiPost(body) {
+  try {
+    const r = await fetch(GAS, { method:'POST', body:JSON.stringify(body) });
+    return await r.json();
+  } catch { return {ok:true}; } // CORS may block read; action still executes
+}
+
+// ─── LOAD ─────────────────────────────────────────────────────
+async function load() {
+  g('invList').innerHTML = '<div class="spin-wrap"><div class="spinner"></div><p>Loading…</p></div>';
+  try {
+    const d = await apiGet();
+    inv = d.inventory || [];
+    renderInv(); renderShop(); buildChips();
+  } catch {
+    g('invList').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Couldn\'t connect</h3><p>Check your Apps Script URL in Settings</p></div>';
+  }
+}
+
+// ─── RENDER INVENTORY ─────────────────────────────────────────
+function renderInv() {
+  const q = g('srchInput').value.trim().toLowerCase();
+  let rows = inv.filter(item => {
+    const m = !q || [item.Name,item.Notes,item.Category,item.Location].some(s=>lo(s).includes(q));
+    const f = !activeF || item.Location===activeF || item.Category===activeF;
+    return m && f;
+  }).sort((a,b)=>lo(a.Name).localeCompare(lo(b.Name)));
+
+  g('countLine').textContent = `${inv.length} item${inv.length!==1?'s':''} in storage`;
+
+  if (!rows.length) {
+    g('invList').innerHTML = `<div class="empty"><div class="empty-icon">${q?'🔍':'📦'}</div><h3>${q?'No matches':'Nothing added yet'}</h3><p>${q?'Try a different search':'Tap + to add your first item'}</p></div>`;
+    return;
+  }
+  g('invList').innerHTML = rows.map(item => {
+    const qty = parseInt(item.Quantity)||0;
+    const onList = item['Shopping List']==='Y';
+    const sub = [item.Location, item.Unit||'', item.Notes].filter(Boolean).join(' · ');
+    return `<div class="card">
+      <div class="cicon">${EM[item.Category]||'📦'}</div>
+      <div class="cbody">
+        <div class="cname">${x(item.Name)}</div>
+        ${sub?`<div class="csub">${x(sub)}</div>`:''}
+      </div>
+      <div class="qty">
+        <button class="qbtn" onclick="adj('${item.ID}',-1)">−</button>
+        <span class="qnum${qty===0?' z':''}">${qty}</span>
+        <button class="qbtn" onclick="adj('${item.ID}',1)">+</button>
+      </div>
+      <div class="cside">
+        <button class="sbtn${onList?' amber':''}" onclick="togShop('${item.ID}')" title="${onList?'On list':'Add to list'}">${onList?'🛒':'🛍️'}</button>
+        <button class="sbtn" onclick="openEdit('${item.ID}')" title="Edit">✏️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── FILTER CHIPS ─────────────────────────────────────────────
+function buildChips() {
+  const locs = [...new Set(inv.map(i=>i.Location).filter(Boolean))].sort();
+  let h = `<button class="chip${!activeF?' on':''}" onclick="setFilter(null,this)">All</button>`;
+  locs.forEach(l => h += `<button class="chip${activeF===l?' on':''}" onclick="setFilter(${JSON.stringify(l)},this)">${x(l)}</button>`);
+  g('chips').innerHTML = h;
+}
+function setFilter(v, btn) {
+  activeF = v;
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  btn.classList.add('on');
+  renderInv();
+}
+
+// ─── QTY ──────────────────────────────────────────────────────
+async function adj(id, delta) {
+  const item = inv.find(i=>String(i.ID)===String(id));
+  if (!item) return;
+  item.Quantity = Math.max(0, (parseInt(item.Quantity)||0) + delta);
+  renderInv();
+  await apiPost({action:'updateQty', id, delta});
+}
+
+// ─── SHOPPING LIST ────────────────────────────────────────────
+async function togShop(id) {
+  const item = inv.find(i=>String(i.ID)===String(id));
+  if (!item) return;
+  const nowOn = item['Shopping List']!=='Y';
+  item['Shopping List'] = nowOn?'Y':'N';
+  renderInv(); renderShop();
+  toast(nowOn?'🛒 Added to shopping list':'Removed from list');
+  await apiPost({action:'toggleShopping', id});
+}
+function renderShop() {
+  const onList = inv.filter(i=>i['Shopping List']==='Y');
+  const b = g('shopBadge');
+  onList.length ? (b.textContent=onList.length, b.classList.remove('hidden')) : b.classList.add('hidden');
+  if (!onList.length) {
+    g('shopList').innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><h3>Shopping list is empty</h3><p>Tap 🛍️ on any item to add it here</p></div>';
+    return;
+  }
+  g('shopList').innerHTML = onList.map(item=>`
+    <div class="scard" id="sc-${item.ID}">
+      <div class="scirc" onclick="checkShop(this)">✓</div>
+      <div class="sname">${x(item.Name)}</div>
+      <div class="sdet">${item.Quantity} ${x(item.Unit||'')}${item.Location?' · '+x(item.Location):''}</div>
+    </div>`).join('')
+    + `<button class="clr-btn" onclick="clearShop()">Clear list</button>`;
+}
+function checkShop(circ) {
+  circ.classList.toggle('done');
+  circ.closest('.scard').classList.toggle('x');
+}
+async function clearShop() {
+  const onList = inv.filter(i=>i['Shopping List']==='Y');
+  if (!onList.length || !confirm(`Remove all ${onList.length} items from shopping list?`)) return;
+  for (const item of onList) { item['Shopping List']='N'; await apiPost({action:'toggleShopping',id:item.ID}); }
+  renderShop(); renderInv(); toast('Shopping list cleared');
+}
+
+// ─── TABS ─────────────────────────────────────────────────────
+function switchTab(t) {
+  g('tInv').classList.toggle('on',t==='inv');
+  g('tShop').classList.toggle('on',t==='shop');
+  g('pInv').classList.toggle('hidden',t!=='inv');
+  g('pShop').classList.toggle('hidden',t!=='shop');
+}
+
+// ─── ADD / EDIT MODAL ─────────────────────────────────────────
+function buildCats() {
+  g('cgrid').innerHTML = CATS.map(c=>`<div class="copt" onclick="pickCat(this)"><span class="ce">${c.e}</span>${c.n}</div>`).join('');
+}
+function pickCat(el) {
+  document.querySelectorAll('.copt').forEach(e=>e.classList.remove('on'));
+  el.classList.add('on');
+}
+function selCat() { const el=document.querySelector('.copt.on'); return el?el.textContent.trim():''; }
+
+function openAdd() {
+  editId = null; g('mTitle').textContent='Add Item';
+  ['iName','iUnit','iNotes'].forEach(id=>g(id).value='');
+  g('iQty').value='1'; g('iLoc').value='';
+  document.querySelectorAll('.copt').forEach(e=>e.classList.remove('on'));
+  g('delBtn').classList.add('hidden');
+  show('iModal'); setTimeout(()=>g('iName').focus(),350);
+}
+function openEdit(id) {
+  const item = inv.find(i=>String(i.ID)===String(id));
+  if (!item) return;
+  editId = id; g('mTitle').textContent='Edit Item';
+  g('iName').value=item.Name; g('iQty').value=item.Quantity;
+  g('iUnit').value=item.Unit||''; g('iLoc').value=item.Location||''; g('iNotes').value=item.Notes||'';
+  document.querySelectorAll('.copt').forEach(e=>e.classList.toggle('on',e.textContent.trim()===item.Category));
+  g('delBtn').classList.remove('hidden'); show('iModal');
+}
+async function saveItem() {
+  const name = g('iName').value.trim();
+  if (!name) { toast('Item name is required'); return; }
+  const body = {name, category:selCat(), quantity:parseInt(g('iQty').value)||1,
+                unit:g('iUnit').value.trim(), location:g('iLoc').value, notes:g('iNotes').value.trim()};
+  close('iModal');
+  if (editId) { await apiPost({...body, action:'edit', id:editId}); toast('Item updated ✓'); }
+  else        { await apiPost({...body, action:'add'}); toast(`${name} added! ✓`); }
+  await load();
+}
+async function deleteItem() {
+  if (!editId) return;
+  const item = inv.find(i=>String(i.ID)===String(editId));
+  if (!confirm(`Delete "${item?.Name}"?`)) return;
+  close('iModal'); await apiPost({action:'delete',id:editId}); toast('Item deleted'); await load();
+}
+
+// ─── SETTINGS ─────────────────────────────────────────────────
+function openSettings() { g('sUrl').value=GAS; show('sModal'); }
+function saveSettings() {
+  GAS = g('sUrl').value.trim(); localStorage.setItem('gasUrl',GAS);
+  close('sModal'); toast('Saved'); load();
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────
+const g = id => document.getElementById(id);
+const show = id => g(id).classList.remove('hidden');
+const hide = id => g(id).classList.add('hidden');
+const close = id => hide(id);
+const lo = s => (s||'').toLowerCase();
+const x = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function bgClose(e, id) { if(e.target===g(id)) close(id); }
+
+let _tt;
+function toast(msg) {
+  const el=g('toast'); el.textContent=msg; el.classList.add('on');
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('on'),2600);
+}
+</script>
+</body>
+</html>
