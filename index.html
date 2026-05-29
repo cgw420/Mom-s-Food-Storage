@@ -152,7 +152,7 @@
     .cgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
     .copt{padding:9px 6px;border:1.5px solid var(--border);border-radius:10px;
           text-align:center;cursor:pointer;font-size:12px;font-weight:500;
-          color:var(--muted);transition:all .15px;line-height:1.3}
+          color:var(--muted);transition:all .15s;line-height:1.3}
     .copt .ce{font-size:20px;display:block;margin-bottom:3px}
     .copt.on{border-color:var(--green);background:var(--green-l);color:var(--green);font-weight:700}
     .btn{width:100%;padding:14px;border-radius:12px;border:none;
@@ -302,13 +302,6 @@
       <label class="fl">Location</label>
       <select class="fi" id="iLoc">
         <option value="">Select…</option>
-        <option>Walk-in Freezer</option>
-        <option>Chest Freezer</option>
-        <option>Pantry Shelf</option>
-        <option>Kitchen Cabinet</option>
-        <option>Garage Shelf</option>
-        <option>Basement Storage</option>
-        <option>Other</option>
       </select>
     </div>
     <div class="fg">
@@ -357,289 +350,331 @@ const DEFAULT_LOCS = ['Walk-in Freezer','Chest Freezer','Pantry Shelf',
 // ─── STATE ────────────────────────────────────────────────────
 let inv = [], activeF = null, editId = null;
 let GAS = localStorage.getItem('gasUrl') || '';
-let locs = JSON.parse(localStorage.getItem('locations') || 'null') || [...DEFAULT_LOCS];
+let locs = [...DEFAULT_LOCS];
 
-// ─── BOOT ────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+// ─── BOOT ─────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
   buildCats();
   buildLocSelect();
+  document.getElementById('locNew').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') addLoc();
+  });
   if (!GAS) { show('setup'); hide('app'); }
   else      { hide('setup'); show('app'); show('fab'); load(); }
 });
 
 // ─── LOCATIONS ────────────────────────────────────────────────
-function saveLocs() { localStorage.setItem('locations', JSON.stringify(locs)); }
+function saveLocs() { apiPost({action:'saveLocations', locations:locs}); }
 
 function buildLocSelect() {
-  const sel = g('iLoc');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Select…</option>'
-    + locs.map(l=>`<option${cur===l?' selected':''}>${x(l)}</option>`).join('');
+  var sel = document.getElementById('iLoc');
+  var cur = sel.value;
+  sel.innerHTML = '<option value="">Select\u2026</option>'
+    + locs.map(function(l){ return '<option' + (cur===l?' selected':'') + '>' + x(l) + '</option>'; }).join('');
 }
 
 function renderLocList() {
-  g('locList').innerHTML = locs.map((l,i)=>`
-    <div class="loc-row">
-      <span>${x(l)}</span>
-      <button class="loc-del" onclick="deleteLoc(${i})" title="Remove">✕</button>
-    </div>`).join('');
+  document.getElementById('locList').innerHTML = locs.map(function(l,i){
+    return '<div class="loc-row"><span>' + x(l) + '</span>'
+      + '<button class="loc-del" onclick="deleteLoc(' + i + ')" title="Remove">\u2715</button></div>';
+  }).join('');
 }
 
 function deleteLoc(i) {
-  locs.splice(i,1); saveLocs(); renderLocList(); buildLocSelect();
+  locs.splice(i, 1); saveLocs(); renderLocList(); buildLocSelect();
 }
 
 function addLoc() {
-  const val = g('locNew').value.trim();
+  var val = document.getElementById('locNew').value.trim();
   if (!val) return;
-  if (locs.includes(val)) { toast('Location already exists'); return; }
+  if (locs.indexOf(val) >= 0) { toast('Location already exists'); return; }
   locs.push(val); saveLocs();
-  g('locNew').value='';
+  document.getElementById('locNew').value = '';
   renderLocList(); buildLocSelect();
 }
 
-// allow Enter key in the add-location input
-document.addEventListener('DOMContentLoaded', () => {
-  g('locNew').addEventListener('keydown', e => { if(e.key==='Enter') addLoc(); });
-});
-
-// ─── SETUP ───────────────────────────────────────────────────
+// ─── SETUP ────────────────────────────────────────────────────
 function completeSetup() {
-  const url = g('setupUrl').value.trim();
+  var url = document.getElementById('setupUrl').value.trim();
   if (!url.startsWith('https://')) { toast('Please enter a valid URL'); return; }
   GAS = url; localStorage.setItem('gasUrl', url);
   hide('setup'); show('app'); show('fab'); load();
 }
 
-// ─── API ─────────────────────────────────────────────────────
+// ─── API ──────────────────────────────────────────────────────
 async function apiGet() {
-  const r = await fetch(GAS + '?t=' + Date.now());
+  var r = await fetch(GAS + '?t=' + Date.now());
   return r.json();
 }
 async function apiPost(body) {
   try {
-    const r = await fetch(GAS, { method:'POST', body:JSON.stringify(body) });
+    var r = await fetch(GAS, { method:'POST', body:JSON.stringify(body) });
     return await r.json();
-  } catch { return {ok:true}; }
+  } catch(e) { return {ok:true}; }
 }
 
 // ─── LOAD ─────────────────────────────────────────────────────
 async function load() {
-  g('invList').innerHTML = '<div class="spin-wrap"><div class="spinner"></div><p>Loading…</p></div>';
+  document.getElementById('invList').innerHTML =
+    '<div class="spin-wrap"><div class="spinner"></div><p>Loading\u2026</p></div>';
   try {
-    const d = await apiGet();
+    var d = await apiGet();
     inv = d.inventory || [];
-    renderInv(); renderShop(); buildChips();
-  } catch {
-    g('invList').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><h3>Couldn\'t connect</h3><p>Check your Apps Script URL in Settings</p></div>';
+    if (d.locations && d.locations.length) locs = d.locations;
+    renderInv(); renderShop(); buildChips(); buildLocSelect();
+  } catch(e) {
+    document.getElementById('invList').innerHTML =
+      '<div class="empty"><div class="empty-icon">\u26a0\ufe0f</div><h3>Couldn\'t connect</h3><p>Check your Apps Script URL in Settings</p></div>';
   }
 }
 
 // ─── RENDER INVENTORY ─────────────────────────────────────────
 function renderInv() {
-  const q = g('srchInput').value.trim().toLowerCase();
-  let rows = inv.filter(item => {
-    const m = !q || [item.Name,item.Notes,item.Category,item.Location].some(s=>lo(s).includes(q));
-    const f = !activeF || item.Location===activeF || item.Category===activeF;
+  var q = document.getElementById('srchInput').value.trim().toLowerCase();
+  var rows = inv.filter(function(item) {
+    var m = !q || [item.Name,item.Notes,item.Category,item.Location].some(function(s){ return lo(s).includes(q); });
+    var f = !activeF || item.Location===activeF || item.Category===activeF;
     return m && f;
-  }).sort((a,b)=>lo(a.Name).localeCompare(lo(b.Name)));
+  }).sort(function(a,b){ return lo(a.Name).localeCompare(lo(b.Name)); });
 
-  g('countLine').textContent = `${inv.length} item${inv.length!==1?'s':''} in storage`;
+  document.getElementById('countLine').textContent =
+    inv.length + ' item' + (inv.length!==1?'s':'') + ' in storage';
 
   if (!rows.length) {
-    g('invList').innerHTML = `<div class="empty"><div class="empty-icon">${q?'🔍':'📦'}</div><h3>${q?'No matches':'Nothing added yet'}</h3><p>${q?'Try a different search':'Tap + to add your first item'}</p></div>`;
+    document.getElementById('invList').innerHTML =
+      '<div class="empty"><div class="empty-icon">' + (q?'🔍':'📦') + '</div>'
+      + '<h3>' + (q?'No matches':'Nothing added yet') + '</h3>'
+      + '<p>' + (q?'Try a different search':'Tap + to add your first item') + '</p></div>';
     return;
   }
-  g('invList').innerHTML = rows.map(item => {
-    const qty = parseInt(item.Quantity)||0;
-    const onList = item['Shopping List']==='Y';
-    const sub = [item.Location, item.Unit||'', item.Notes].filter(Boolean).join(' · ');
-    return `<div class="card">
-      <div class="cicon">${EM[item.Category]||'📦'}</div>
-      <div class="cbody">
-        <div class="cname">${x(item.Name)}</div>
-        ${sub?`<div class="csub">${x(sub)}</div>`:''}
-      </div>
-      <div class="qty">
-        <button class="qbtn" onclick="adj('${item.ID}',-1)">−</button>
-        <span class="qnum${qty===0?' z':''}">${qty}</span>
-        <button class="qbtn" onclick="adj('${item.ID}',1)">+</button>
-      </div>
-      <div class="cside">
-        <button class="sbtn${onList?' amber':''}" onclick="togShop('${item.ID}')" title="${onList?'On list':'Add to list'}">${onList?'🛒':'🛍️'}</button>
-        <button class="sbtn" onclick="openEdit('${item.ID}')" title="Edit">✏️</button>
-      </div>
-    </div>`;
+  document.getElementById('invList').innerHTML = rows.map(function(item) {
+    var qty = parseInt(item.Quantity)||0;
+    var onList = String(item['Shopping List'])==='Y';
+    var sub = [item.Location, item.Unit||'', item.Notes].filter(Boolean).join(' \u00b7 ');
+    return '<div class="card">'
+      + '<div class="cicon">' + (EM[item.Category]||'📦') + '</div>'
+      + '<div class="cbody">'
+      + '<div class="cname">' + x(item.Name) + '</div>'
+      + (sub ? '<div class="csub">' + x(sub) + '</div>' : '')
+      + '</div>'
+      + '<div class="qty">'
+      + '<button class="qbtn" onclick="adj(\'' + item.ID + '\',-1)">\u2212</button>'
+      + '<span class="qnum' + (qty===0?' z':'') + '">' + qty + '</span>'
+      + '<button class="qbtn" onclick="adj(\'' + item.ID + '\',1)">+</button>'
+      + '</div>'
+      + '<div class="cside">'
+      + '<button class="sbtn' + (onList?' amber':'') + '" onclick="togShop(\'' + item.ID + '\')" title="' + (onList?'On list':'Add to list') + '">' + (onList?'🛒':'🛍️') + '</button>'
+      + '<button class="sbtn" onclick="openEdit(\'' + item.ID + '\')" title="Edit">✏️</button>'
+      + '</div></div>';
   }).join('');
 }
 
 // ─── FILTER CHIPS ─────────────────────────────────────────────
 function buildChips() {
-  const usedLocs = [...new Set(inv.map(i=>i.Location).filter(Boolean))].sort();
-  let h = `<button class="chip${!activeF?' on':''}" onclick="setFilter(null,this)">All</button>`;
-  usedLocs.forEach(l => h += `<button class="chip${activeF===l?' on':''}" onclick="setFilter(${JSON.stringify(l)},this)">${x(l)}</button>`);
-  g('chips').innerHTML = h;
+  var usedLocs = [];
+  inv.forEach(function(i){ if(i.Location && usedLocs.indexOf(i.Location)<0) usedLocs.push(i.Location); });
+  usedLocs.sort();
+  var h = '<button class="chip' + (!activeF?' on':'') + '" onclick="setFilter(null,this)">All</button>';
+  usedLocs.forEach(function(l){
+    h += '<button class="chip' + (activeF===l?' on':'') + '" onclick="setFilter(' + JSON.stringify(l) + ',this)">' + x(l) + '</button>';
+  });
+  document.getElementById('chips').innerHTML = h;
 }
 function setFilter(v, btn) {
   activeF = v;
-  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('on'));
+  document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('on'); });
   btn.classList.add('on');
   renderInv();
 }
 
 // ─── QTY ──────────────────────────────────────────────────────
 async function adj(id, delta) {
-  const item = inv.find(i=>String(i.ID)===String(id));
+  var item = inv.find(function(i){ return String(i.ID)===String(id); });
   if (!item) return;
   item.Quantity = Math.max(0, (parseInt(item.Quantity)||0) + delta);
   renderInv();
-  await apiPost({action:'updateQty', id, delta});
+  await apiPost({action:'updateQty', id:String(id), delta:delta});
 }
 
 // ─── SHOPPING LIST ────────────────────────────────────────────
 async function togShop(id) {
-  const item = inv.find(i=>String(i.ID)===String(id));
+  var item = inv.find(function(i){ return String(i.ID)===String(id); });
   if (!item) return;
-  const nowOn = item['Shopping List']!=='Y';
+  var nowOn = String(item['Shopping List'])!=='Y';
   item['Shopping List'] = nowOn?'Y':'N';
   renderInv(); renderShop();
   toast(nowOn?'🛒 Added to shopping list':'Removed from list');
-  await apiPost({action:'toggleShopping', id});
+  await apiPost({action:'toggleShopping', id:String(id)});
 }
 function renderShop() {
-  const onList = inv.filter(i=>i['Shopping List']==='Y');
-  const b = g('shopBadge');
-  onList.length ? (b.textContent=onList.length, b.classList.remove('hidden')) : b.classList.add('hidden');
+  var onList = inv.filter(function(i){ return String(i['Shopping List'])==='Y'; });
+  var b = document.getElementById('shopBadge');
+  if (onList.length) { b.textContent=onList.length; b.classList.remove('hidden'); }
+  else { b.classList.add('hidden'); }
   if (!onList.length) {
-    g('shopList').innerHTML = '<div class="empty"><div class="empty-icon">🛒</div><h3>Shopping list is empty</h3><p>Tap 🛍️ on any item to add it here</p></div>';
+    document.getElementById('shopList').innerHTML =
+      '<div class="empty"><div class="empty-icon">🛒</div><h3>Shopping list is empty</h3>'
+      + '<p>Tap 🛍️ on any item to add it here</p></div>';
     return;
   }
-  g('shopList').innerHTML = onList.map(item=>`
-    <div class="scard" id="sc-${item.ID}">
-      <div class="scirc" onclick="checkShop(this)">✓</div>
-      <div class="sname">${x(item.Name)}</div>
-      <div class="sdet">${item.Quantity} ${x(item.Unit||'')}${item.Location?' · '+x(item.Location):''}</div>
-    </div>`).join('')
-    + `<button class="clr-btn" onclick="clearShop()">Clear list</button>`;
+  document.getElementById('shopList').innerHTML = onList.map(function(item){
+    return '<div class="scard" id="sc-' + item.ID + '">'
+      + '<div class="scirc" onclick="checkShop(this)">\u2713</div>'
+      + '<div class="sname">' + x(item.Name) + '</div>'
+      + '<div class="sdet">' + item.Quantity + ' ' + x(item.Unit||'')
+      + (item.Location?' \u00b7 '+x(item.Location):'') + '</div></div>';
+  }).join('') + '<button class="clr-btn" onclick="clearShop()">Clear list</button>';
 }
 function checkShop(circ) {
   circ.classList.toggle('done');
   circ.closest('.scard').classList.toggle('x');
 }
 async function clearShop() {
-  const onList = inv.filter(i=>i['Shopping List']==='Y');
-  if (!onList.length || !confirm(`Remove all ${onList.length} items from shopping list?`)) return;
-  for (const item of onList) { item['Shopping List']='N'; await apiPost({action:'toggleShopping',id:item.ID}); }
+  var onList = inv.filter(function(i){ return String(i['Shopping List'])==='Y'; });
+  if (!onList.length || !confirm('Remove all ' + onList.length + ' items from shopping list?')) return;
+  for (var i=0; i<onList.length; i++) {
+    onList[i]['Shopping List']='N';
+    await apiPost({action:'toggleShopping', id:String(onList[i].ID)});
+  }
   renderShop(); renderInv(); toast('Shopping list cleared');
 }
 
 // ─── TABS ─────────────────────────────────────────────────────
 function switchTab(t) {
-  g('tInv').classList.toggle('on',t==='inv');
-  g('tShop').classList.toggle('on',t==='shop');
-  g('pInv').classList.toggle('hidden',t!=='inv');
-  g('pShop').classList.toggle('hidden',t!=='shop');
+  document.getElementById('tInv').classList.toggle('on', t==='inv');
+  document.getElementById('tShop').classList.toggle('on', t==='shop');
+  document.getElementById('pInv').classList.toggle('hidden', t!=='inv');
+  document.getElementById('pShop').classList.toggle('hidden', t!=='shop');
 }
 
 // ─── ADD / EDIT MODAL ─────────────────────────────────────────
 function buildCats() {
-  g('cgrid').innerHTML = CATS.map(c=>`<div class="copt" onclick="pickCat(this)"><span class="ce">${c.e}</span>${c.n}</div>`).join('');
+  document.getElementById('cgrid').innerHTML = CATS.map(function(c){
+    return '<div class="copt" onclick="pickCat(this)"><span class="ce">' + c.e + '</span>' + c.n + '</div>';
+  }).join('');
 }
 function pickCat(el) {
-  document.querySelectorAll('.copt').forEach(e=>e.classList.remove('on'));
+  document.querySelectorAll('.copt').forEach(function(e){ e.classList.remove('on'); });
   el.classList.add('on');
 }
-function selCat() { const el=document.querySelector('.copt.on'); return el?el.textContent.trim():''; }
+function selCat() {
+  var el = document.querySelector('.copt.on');
+  return el ? el.textContent.trim() : '';
+}
 
 function openAdd() {
-  editId = null; g('mTitle').textContent='Add Item';
-  ['iName','iUnit','iNotes'].forEach(id=>g(id).value='');
-  g('iQty').value='1'; g('iLoc').value='';
-  document.querySelectorAll('.copt').forEach(e=>e.classList.remove('on'));
-  g('delBtn').classList.add('hidden');
+  editId = null;
+  document.getElementById('mTitle').textContent = 'Add Item';
+  ['iName','iUnit','iNotes'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('iQty').value = '1';
+  document.getElementById('iLoc').value = '';
+  document.querySelectorAll('.copt').forEach(function(e){ e.classList.remove('on'); });
+  document.getElementById('delBtn').classList.add('hidden');
   buildLocSelect();
   hideSuggests();
-  show('iModal'); setTimeout(()=>g('iName').focus(),350);
+  show('iModal');
+  setTimeout(function(){ document.getElementById('iName').focus(); }, 350);
 }
 function openEdit(id) {
-  const item = inv.find(i=>String(i.ID)===String(id));
+  var item = inv.find(function(i){ return String(i.ID)===String(id); });
   if (!item) return;
-  editId = id; g('mTitle').textContent='Edit Item';
-  g('iName').value=item.Name; g('iQty').value=item.Quantity;
-  g('iUnit').value=item.Unit||''; g('iNotes').value=item.Notes||'';
+  editId = String(id);
+  document.getElementById('mTitle').textContent = 'Edit Item';
+  document.getElementById('iName').value = item.Name;
+  document.getElementById('iQty').value  = item.Quantity;
+  document.getElementById('iUnit').value = item.Unit||'';
+  document.getElementById('iNotes').value= item.Notes||'';
   buildLocSelect();
-  g('iLoc').value=item.Location||'';
-  document.querySelectorAll('.copt').forEach(e=>e.classList.toggle('on',e.textContent.trim()===item.Category));
-  g('delBtn').classList.remove('hidden');
+  document.getElementById('iLoc').value  = item.Location||'';
+  document.querySelectorAll('.copt').forEach(function(e){
+    e.classList.toggle('on', e.textContent.trim()===item.Category);
+  });
+  document.getElementById('delBtn').classList.remove('hidden');
   hideSuggests();
   show('iModal');
 }
 async function saveItem() {
-  const name = g('iName').value.trim();
+  var name = document.getElementById('iName').value.trim();
   if (!name) { toast('Item name is required'); return; }
-  const body = {name, category:selCat(), quantity:parseInt(g('iQty').value)||1,
-                unit:g('iUnit').value.trim(), location:g('iLoc').value, notes:g('iNotes').value.trim()};
+  var body = {
+    name:     name,
+    category: selCat(),
+    quantity: parseInt(document.getElementById('iQty').value)||1,
+    unit:     document.getElementById('iUnit').value.trim(),
+    location: document.getElementById('iLoc').value,
+    notes:    document.getElementById('iNotes').value.trim()
+  };
   dismiss('iModal');
-  if (editId) { await apiPost({...body, action:'edit', id:editId}); toast('Item updated ✓'); }
-  else        { await apiPost({...body, action:'add'}); toast(`${name} added! ✓`); }
+  if (editId) {
+    body.action = 'edit'; body.id = editId;
+    await apiPost(body); toast('Item updated \u2713');
+  } else {
+    body.action = 'add';
+    await apiPost(body); toast(name + ' added! \u2713');
+  }
   await load();
 }
 async function deleteItem() {
   if (!editId) return;
-  const item = inv.find(i=>String(i.ID)===String(editId));
-  if (!confirm(`Delete "${item?.Name}"?`)) return;
-  dismiss('iModal'); await apiPost({action:'delete',id:editId}); toast('Item deleted'); await load();
+  var item = inv.find(function(i){ return String(i.ID)===String(editId); });
+  if (!confirm('Delete "' + (item?item.Name:'this item') + '"?')) return;
+  dismiss('iModal');
+  await apiPost({action:'delete', id:editId});
+  toast('Item deleted');
+  await load();
 }
 
 // ─── AUTOCOMPLETE ─────────────────────────────────────────────
 function nameSuggest() {
-  const q = g('iName').value.trim().toLowerCase();
+  var q = document.getElementById('iName').value.trim().toLowerCase();
   if (!q || editId) { hide('suggestList'); return; }
-  const matches = inv
-    .map(item => { const n=lo(item.Name); return {item, score:n.startsWith(q)?2:n.includes(q)?1:0}; })
-    .filter(r=>r.score>0)
-    .sort((a,b)=>b.score-a.score||lo(a.item.Name).localeCompare(lo(b.item.Name)))
+  var matches = inv
+    .map(function(item){ var n=lo(item.Name); return {item:item, score:n.startsWith(q)?2:n.includes(q)?1:0}; })
+    .filter(function(r){ return r.score>0; })
+    .sort(function(a,b){ return b.score-a.score || lo(a.item.Name).localeCompare(lo(b.item.Name)); })
     .slice(0,6);
   if (!matches.length) { hide('suggestList'); return; }
-  g('suggestList').innerHTML = matches.map(({item})=>{
-    const sub=[item.Location, item.Unit?`${item.Quantity} ${item.Unit}`:`qty: ${item.Quantity}`,item.Notes].filter(Boolean).join(' · ');
-    return `<div class="suggest-item" onmousedown="pickSuggest('${item.ID}')">
-      <span class="suggest-icon">${EM[item.Category]||'📦'}</span>
-      <div class="suggest-body">
-        <div class="suggest-name">${x(item.Name)}</div>
-        ${sub?`<div class="suggest-sub">${x(sub)}</div>`:''}
-      </div></div>`;
-  }).join('') + `<div class="suggest-hint">Tap to update an existing item instead of creating a duplicate</div>`;
+  document.getElementById('suggestList').innerHTML = matches.map(function(r){
+    var item = r.item;
+    var sub = [item.Location, item.Unit?(item.Quantity+' '+item.Unit):('qty: '+item.Quantity), item.Notes].filter(Boolean).join(' \u00b7 ');
+    return '<div class="suggest-item" onmousedown="pickSuggest(\'' + item.ID + '\')">'
+      + '<span class="suggest-icon">' + (EM[item.Category]||'📦') + '</span>'
+      + '<div class="suggest-body">'
+      + '<div class="suggest-name">' + x(item.Name) + '</div>'
+      + (sub?'<div class="suggest-sub">'+x(sub)+'</div>':'')
+      + '</div></div>';
+  }).join('') + '<div class="suggest-hint">Tap to update an existing item instead of creating a duplicate</div>';
   show('suggestList');
 }
 function pickSuggest(id) { hideSuggests(); openEdit(id); }
-function hideSuggests() { hide('suggestList'); }
+function hideSuggests()  { hide('suggestList'); }
 
 // ─── SETTINGS ─────────────────────────────────────────────────
 function openSettings() {
-  g('sUrl').value = GAS;
+  document.getElementById('sUrl').value = GAS;
   renderLocList();
   show('sModal');
 }
 function saveSettings() {
-  GAS = g('sUrl').value.trim();
+  GAS = document.getElementById('sUrl').value.trim();
   localStorage.setItem('gasUrl', GAS);
   dismiss('sModal'); toast('Saved'); load();
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────
-const g = id => document.getElementById(id);
-const show = id => g(id).classList.remove('hidden');
-const hide = id => g(id).classList.add('hidden');
-function dismiss(id) { hide(id); }
-const lo = s => (s||'').toLowerCase();
-const x = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-function bgClose(e, id) { if(e.target===g(id)) dismiss(id); }
+function g(id)       { return document.getElementById(id); }
+function show(id)    { document.getElementById(id).classList.remove('hidden'); }
+function hide(id)    { document.getElementById(id).classList.add('hidden'); }
+function dismiss(id) { document.getElementById(id).classList.add('hidden'); }
+function lo(s)       { return (s||'').toLowerCase(); }
+function x(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function bgClose(e, id) { if (e.target === document.getElementById(id)) dismiss(id); }
 
-let _tt;
+var _tt;
 function toast(msg) {
-  const el=g('toast'); el.textContent=msg; el.classList.add('on');
-  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('on'),2600);
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(_tt); _tt = setTimeout(function(){ el.classList.remove('on'); }, 2600);
 }
 </script>
 </body>
