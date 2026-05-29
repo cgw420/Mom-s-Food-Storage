@@ -336,21 +336,22 @@
 
 <script>
 // ─── CATEGORIES ───────────────────────────────────────────────
-const CATS = [
+var CATS = [
   {n:'Freezer',e:'🧊'},{n:'Canned',e:'🥫'},{n:'Baking',e:'🌾'},
   {n:'Snacks',e:'🍪'},{n:'Drinks',e:'🥤'},{n:'Produce',e:'🥦'},
   {n:'Meat',e:'🥩'},{n:'Dairy',e:'🥛'},{n:'Grains',e:'🍚'},
-  {n:'Condiments',e:'🫙'},{n:'Spices',e:'🌿'},{n:'Other',e:'📦'},
+  {n:'Condiments',e:'🫙'},{n:'Spices',e:'🌿'},{n:'Other',e:'📦'}
 ];
-const EM = Object.fromEntries(CATS.map(c=>[c.n,c.e]));
+var EM = {};
+CATS.forEach(function(c){ EM[c.n] = c.e; });
 
-const DEFAULT_LOCS = ['Walk-in Freezer','Chest Freezer','Pantry Shelf',
-                      'Kitchen Cabinet','Garage Shelf','Basement Storage','Other'];
+var DEFAULT_LOCS = ['Walk-in Freezer','Chest Freezer','Pantry Shelf',
+                    'Kitchen Cabinet','Garage Shelf','Basement Storage','Other'];
 
 // ─── STATE ────────────────────────────────────────────────────
-let inv = [], activeF = null, editId = null;
-let GAS = localStorage.getItem('gasUrl') || '';
-let locs = [...DEFAULT_LOCS];
+var inv = [], activeF = null, editId = null;
+var GAS = localStorage.getItem('gasUrl') || '';
+var locs = DEFAULT_LOCS.slice();
 
 // ─── BOOT ─────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
@@ -374,7 +375,7 @@ function buildLocSelect() {
 }
 
 function renderLocList() {
-  document.getElementById('locList').innerHTML = locs.map(function(l,i){
+  document.getElementById('locList').innerHTML = locs.map(function(l, i) {
     return '<div class="loc-row"><span>' + x(l) + '</span>'
       + '<button class="loc-del" onclick="deleteLoc(' + i + ')" title="Remove">\u2715</button></div>';
   }).join('');
@@ -424,7 +425,8 @@ async function load() {
     renderInv(); renderShop(); buildChips(); buildLocSelect();
   } catch(e) {
     document.getElementById('invList').innerHTML =
-      '<div class="empty"><div class="empty-icon">\u26a0\ufe0f</div><h3>Couldn\'t connect</h3><p>Check your Apps Script URL in Settings</p></div>';
+      '<div class="empty"><div class="empty-icon">\u26a0\ufe0f</div>'
+      + '<h3>Couldn\'t connect</h3><p>Check your Apps Script URL in Settings</p></div>';
   }
 }
 
@@ -432,39 +434,42 @@ async function load() {
 function renderInv() {
   var q = document.getElementById('srchInput').value.trim().toLowerCase();
   var rows = inv.filter(function(item) {
-    var m = !q || [item.Name,item.Notes,item.Category,item.Location].some(function(s){ return lo(s).includes(q); });
-    var f = !activeF || item.Location===activeF || item.Category===activeF;
+    var m = !q || [item.Name,item.Notes,item.Category,item.Location]
+      .some(function(s){ return lo(s).indexOf(q) >= 0; });
+    var f = !activeF || item.Location === activeF || item.Category === activeF;
     return m && f;
   }).sort(function(a,b){ return lo(a.Name).localeCompare(lo(b.Name)); });
 
   document.getElementById('countLine').textContent =
-    inv.length + ' item' + (inv.length!==1?'s':'') + ' in storage';
+    inv.length + ' item' + (inv.length !== 1 ? 's' : '') + ' in storage';
 
   if (!rows.length) {
     document.getElementById('invList').innerHTML =
-      '<div class="empty"><div class="empty-icon">' + (q?'🔍':'📦') + '</div>'
-      + '<h3>' + (q?'No matches':'Nothing added yet') + '</h3>'
-      + '<p>' + (q?'Try a different search':'Tap + to add your first item') + '</p></div>';
+      '<div class="empty"><div class="empty-icon">' + (q ? '🔍' : '📦') + '</div>'
+      + '<h3>' + (q ? 'No matches' : 'Nothing added yet') + '</h3>'
+      + '<p>' + (q ? 'Try a different search' : 'Tap + to add your first item') + '</p></div>';
     return;
   }
+
   document.getElementById('invList').innerHTML = rows.map(function(item) {
-    var qty = parseInt(item.Quantity)||0;
-    var onList = String(item['Shopping List'])==='Y';
-    var sub = [item.Location, item.Unit||'', item.Notes].filter(Boolean).join(' \u00b7 ');
+    var qty = parseInt(item.Quantity) || 0;
+    var onList = String(item['Shopping List']) === 'Y';
+    var sub = [item.Location, item.Unit || '', item.Notes].filter(Boolean).join(' \u00b7 ');
     return '<div class="card">'
-      + '<div class="cicon">' + (EM[item.Category]||'📦') + '</div>'
+      + '<div class="cicon">' + (EM[item.Category] || '📦') + '</div>'
       + '<div class="cbody">'
       + '<div class="cname">' + x(item.Name) + '</div>'
       + (sub ? '<div class="csub">' + x(sub) + '</div>' : '')
       + '</div>'
       + '<div class="qty">'
       + '<button class="qbtn" onclick="adj(\'' + item.ID + '\',-1)">\u2212</button>'
-      + '<span class="qnum' + (qty===0?' z':'') + '">' + qty + '</span>'
+      + '<span class="qnum' + (qty === 0 ? ' z' : '') + '">' + qty + '</span>'
       + '<button class="qbtn" onclick="adj(\'' + item.ID + '\',1)">+</button>'
       + '</div>'
       + '<div class="cside">'
-      + '<button class="sbtn' + (onList?' amber':'') + '" onclick="togShop(\'' + item.ID + '\')" title="' + (onList?'On list':'Add to list') + '">' + (onList?'🛒':'🛍️') + '</button>'
-      + '<button class="sbtn" onclick="openEdit(\'' + item.ID + '\')" title="Edit">✏️</button>'
+      + '<button class="sbtn' + (onList ? ' amber' : '') + '" onclick="togShop(\'' + item.ID + '\')">'
+      + (onList ? '🛒' : '🛍️') + '</button>'
+      + '<button class="sbtn" onclick="openEdit(\'' + item.ID + '\')">✏️</button>'
       + '</div></div>';
   }).join('');
 }
@@ -472,68 +477,74 @@ function renderInv() {
 // ─── FILTER CHIPS ─────────────────────────────────────────────
 function buildChips() {
   var usedLocs = [];
-  inv.forEach(function(i){ if(i.Location && usedLocs.indexOf(i.Location)<0) usedLocs.push(i.Location); });
+  inv.forEach(function(i) {
+    if (i.Location && usedLocs.indexOf(i.Location) < 0) usedLocs.push(i.Location);
+  });
   usedLocs.sort();
-  var h = '<button class="chip' + (!activeF?' on':'') + '" onclick="setFilter(null,this)">All</button>';
-  usedLocs.forEach(function(l){
-    h += '<button class="chip' + (activeF===l?' on':'') + '" onclick="setFilter(' + JSON.stringify(l) + ',this)">' + x(l) + '</button>';
+  var h = '<button class="chip' + (!activeF ? ' on' : '') + '" onclick="setFilter(null,this)">All</button>';
+  usedLocs.forEach(function(l) {
+    h += '<button class="chip' + (activeF === l ? ' on' : '') + '" data-loc="' + x(l) + '" onclick="setFilter(this.dataset.loc,this)">' + x(l) + '</button>';
   });
   document.getElementById('chips').innerHTML = h;
 }
+
 function setFilter(v, btn) {
   activeF = v;
-  document.querySelectorAll('.chip').forEach(function(c){ c.classList.remove('on'); });
+  document.querySelectorAll('.chip').forEach(function(c) { c.classList.remove('on'); });
   btn.classList.add('on');
   renderInv();
 }
 
 // ─── QTY ──────────────────────────────────────────────────────
 async function adj(id, delta) {
-  var item = inv.find(function(i){ return String(i.ID)===String(id); });
+  var item = inv.find(function(i){ return String(i.ID) === String(id); });
   if (!item) return;
-  item.Quantity = Math.max(0, (parseInt(item.Quantity)||0) + delta);
+  item.Quantity = Math.max(0, (parseInt(item.Quantity) || 0) + delta);
   renderInv();
   await apiPost({action:'updateQty', id:String(id), delta:delta});
 }
 
 // ─── SHOPPING LIST ────────────────────────────────────────────
 async function togShop(id) {
-  var item = inv.find(function(i){ return String(i.ID)===String(id); });
+  var item = inv.find(function(i){ return String(i.ID) === String(id); });
   if (!item) return;
-  var nowOn = String(item['Shopping List'])!=='Y';
-  item['Shopping List'] = nowOn?'Y':'N';
+  var nowOn = String(item['Shopping List']) !== 'Y';
+  item['Shopping List'] = nowOn ? 'Y' : 'N';
   renderInv(); renderShop();
-  toast(nowOn?'🛒 Added to shopping list':'Removed from list');
+  toast(nowOn ? '🛒 Added to shopping list' : 'Removed from list');
   await apiPost({action:'toggleShopping', id:String(id)});
 }
+
 function renderShop() {
-  var onList = inv.filter(function(i){ return String(i['Shopping List'])==='Y'; });
+  var onList = inv.filter(function(i){ return String(i['Shopping List']) === 'Y'; });
   var b = document.getElementById('shopBadge');
-  if (onList.length) { b.textContent=onList.length; b.classList.remove('hidden'); }
+  if (onList.length) { b.textContent = onList.length; b.classList.remove('hidden'); }
   else { b.classList.add('hidden'); }
   if (!onList.length) {
     document.getElementById('shopList').innerHTML =
-      '<div class="empty"><div class="empty-icon">🛒</div><h3>Shopping list is empty</h3>'
-      + '<p>Tap 🛍️ on any item to add it here</p></div>';
+      '<div class="empty"><div class="empty-icon">🛒</div>'
+      + '<h3>Shopping list is empty</h3><p>Tap 🛍️ on any item to add it here</p></div>';
     return;
   }
-  document.getElementById('shopList').innerHTML = onList.map(function(item){
+  document.getElementById('shopList').innerHTML = onList.map(function(item) {
     return '<div class="scard" id="sc-' + item.ID + '">'
       + '<div class="scirc" onclick="checkShop(this)">\u2713</div>'
       + '<div class="sname">' + x(item.Name) + '</div>'
-      + '<div class="sdet">' + item.Quantity + ' ' + x(item.Unit||'')
-      + (item.Location?' \u00b7 '+x(item.Location):'') + '</div></div>';
+      + '<div class="sdet">' + item.Quantity + ' ' + x(item.Unit || '')
+      + (item.Location ? ' \u00b7 ' + x(item.Location) : '') + '</div></div>';
   }).join('') + '<button class="clr-btn" onclick="clearShop()">Clear list</button>';
 }
+
 function checkShop(circ) {
   circ.classList.toggle('done');
   circ.closest('.scard').classList.toggle('x');
 }
+
 async function clearShop() {
-  var onList = inv.filter(function(i){ return String(i['Shopping List'])==='Y'; });
+  var onList = inv.filter(function(i){ return String(i['Shopping List']) === 'Y'; });
   if (!onList.length || !confirm('Remove all ' + onList.length + ' items from shopping list?')) return;
-  for (var i=0; i<onList.length; i++) {
-    onList[i]['Shopping List']='N';
+  for (var i = 0; i < onList.length; i++) {
+    onList[i]['Shopping List'] = 'N';
     await apiPost({action:'toggleShopping', id:String(onList[i].ID)});
   }
   renderShop(); renderInv(); toast('Shopping list cleared');
@@ -541,15 +552,15 @@ async function clearShop() {
 
 // ─── TABS ─────────────────────────────────────────────────────
 function switchTab(t) {
-  document.getElementById('tInv').classList.toggle('on', t==='inv');
-  document.getElementById('tShop').classList.toggle('on', t==='shop');
-  document.getElementById('pInv').classList.toggle('hidden', t!=='inv');
-  document.getElementById('pShop').classList.toggle('hidden', t!=='shop');
+  document.getElementById('tInv').classList.toggle('on', t === 'inv');
+  document.getElementById('tShop').classList.toggle('on', t === 'shop');
+  document.getElementById('pInv').classList.toggle('hidden', t !== 'inv');
+  document.getElementById('pShop').classList.toggle('hidden', t !== 'shop');
 }
 
 // ─── ADD / EDIT MODAL ─────────────────────────────────────────
 function buildCats() {
-  document.getElementById('cgrid').innerHTML = CATS.map(function(c){
+  document.getElementById('cgrid').innerHTML = CATS.map(function(c) {
     return '<div class="copt" onclick="pickCat(this)"><span class="ce">' + c.e + '</span>' + c.n + '</div>';
   }).join('');
 }
@@ -565,7 +576,7 @@ function selCat() {
 function openAdd() {
   editId = null;
   document.getElementById('mTitle').textContent = 'Add Item';
-  ['iName','iUnit','iNotes'].forEach(function(id){ document.getElementById(id).value=''; });
+  ['iName','iUnit','iNotes'].forEach(function(id){ document.getElementById(id).value = ''; });
   document.getElementById('iQty').value = '1';
   document.getElementById('iLoc').value = '';
   document.querySelectorAll('.copt').forEach(function(e){ e.classList.remove('on'); });
@@ -575,31 +586,33 @@ function openAdd() {
   show('iModal');
   setTimeout(function(){ document.getElementById('iName').focus(); }, 350);
 }
+
 function openEdit(id) {
-  var item = inv.find(function(i){ return String(i.ID)===String(id); });
+  var item = inv.find(function(i){ return String(i.ID) === String(id); });
   if (!item) return;
   editId = String(id);
   document.getElementById('mTitle').textContent = 'Edit Item';
-  document.getElementById('iName').value = item.Name;
-  document.getElementById('iQty').value  = item.Quantity;
-  document.getElementById('iUnit').value = item.Unit||'';
-  document.getElementById('iNotes').value= item.Notes||'';
+  document.getElementById('iName').value  = item.Name;
+  document.getElementById('iQty').value   = item.Quantity;
+  document.getElementById('iUnit').value  = item.Unit || '';
+  document.getElementById('iNotes').value = item.Notes || '';
   buildLocSelect();
-  document.getElementById('iLoc').value  = item.Location||'';
+  document.getElementById('iLoc').value = item.Location || '';
   document.querySelectorAll('.copt').forEach(function(e){
-    e.classList.toggle('on', e.textContent.trim()===item.Category);
+    e.classList.toggle('on', e.textContent.trim() === item.Category);
   });
   document.getElementById('delBtn').classList.remove('hidden');
   hideSuggests();
   show('iModal');
 }
+
 async function saveItem() {
   var name = document.getElementById('iName').value.trim();
   if (!name) { toast('Item name is required'); return; }
   var body = {
     name:     name,
     category: selCat(),
-    quantity: parseInt(document.getElementById('iQty').value)||1,
+    quantity: parseInt(document.getElementById('iQty').value) || 1,
     unit:     document.getElementById('iUnit').value.trim(),
     location: document.getElementById('iLoc').value,
     notes:    document.getElementById('iNotes').value.trim()
@@ -614,10 +627,11 @@ async function saveItem() {
   }
   await load();
 }
+
 async function deleteItem() {
   if (!editId) return;
-  var item = inv.find(function(i){ return String(i.ID)===String(editId); });
-  if (!confirm('Delete "' + (item?item.Name:'this item') + '"?')) return;
+  var item = inv.find(function(i){ return String(i.ID) === String(editId); });
+  if (!confirm('Delete "' + (item ? item.Name : 'this item') + '"?')) return;
   dismiss('iModal');
   await apiPost({action:'delete', id:editId});
   toast('Item deleted');
@@ -629,19 +643,24 @@ function nameSuggest() {
   var q = document.getElementById('iName').value.trim().toLowerCase();
   if (!q || editId) { hide('suggestList'); return; }
   var matches = inv
-    .map(function(item){ var n=lo(item.Name); return {item:item, score:n.startsWith(q)?2:n.includes(q)?1:0}; })
-    .filter(function(r){ return r.score>0; })
-    .sort(function(a,b){ return b.score-a.score || lo(a.item.Name).localeCompare(lo(b.item.Name)); })
-    .slice(0,6);
+    .map(function(item){
+      var n = lo(item.Name);
+      return {item:item, score: n.indexOf(q)===0 ? 2 : n.indexOf(q)>=0 ? 1 : 0};
+    })
+    .filter(function(r){ return r.score > 0; })
+    .sort(function(a,b){ return b.score - a.score || lo(a.item.Name).localeCompare(lo(b.item.Name)); })
+    .slice(0, 6);
   if (!matches.length) { hide('suggestList'); return; }
-  document.getElementById('suggestList').innerHTML = matches.map(function(r){
+  document.getElementById('suggestList').innerHTML = matches.map(function(r) {
     var item = r.item;
-    var sub = [item.Location, item.Unit?(item.Quantity+' '+item.Unit):('qty: '+item.Quantity), item.Notes].filter(Boolean).join(' \u00b7 ');
+    var sub = [item.Location,
+      item.Unit ? (item.Quantity + ' ' + item.Unit) : ('qty: ' + item.Quantity),
+      item.Notes].filter(Boolean).join(' \u00b7 ');
     return '<div class="suggest-item" onmousedown="pickSuggest(\'' + item.ID + '\')">'
-      + '<span class="suggest-icon">' + (EM[item.Category]||'📦') + '</span>'
+      + '<span class="suggest-icon">' + (EM[item.Category] || '📦') + '</span>'
       + '<div class="suggest-body">'
       + '<div class="suggest-name">' + x(item.Name) + '</div>'
-      + (sub?'<div class="suggest-sub">'+x(sub)+'</div>':'')
+      + (sub ? '<div class="suggest-sub">' + x(sub) + '</div>' : '')
       + '</div></div>';
   }).join('') + '<div class="suggest-hint">Tap to update an existing item instead of creating a duplicate</div>';
   show('suggestList');
@@ -666,7 +685,7 @@ function g(id)       { return document.getElementById(id); }
 function show(id)    { document.getElementById(id).classList.remove('hidden'); }
 function hide(id)    { document.getElementById(id).classList.add('hidden'); }
 function dismiss(id) { document.getElementById(id).classList.add('hidden'); }
-function lo(s)       { return (s||'').toLowerCase(); }
+function lo(s)       { return (s || '').toLowerCase(); }
 function x(s)        { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function bgClose(e, id) { if (e.target === document.getElementById(id)) dismiss(id); }
 
